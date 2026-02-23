@@ -1,129 +1,333 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
-void main() {
-  runApp(MyApp());
-}
+class UserEditScreen extends StatefulWidget {
+  const UserEditScreen({super.key});
 
-class MyApp extends StatelessWidget {
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Profile Edit Example',
-      home: ProfileEditScreen(),
-    );
-  }
+  State<UserEditScreen> createState() => _UserEditScreenState();
 }
 
-class ProfileEditScreen extends StatefulWidget {
-  @override
-  _ProfileEditScreenState createState() => _ProfileEditScreenState();
-}
+class _UserEditScreenState extends State<UserEditScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
 
-class _ProfileEditScreenState extends State<ProfileEditScreen> {
-  int _currentIndex = 0; // Index for bottom navigation bar
-  TextEditingController _nameController = TextEditingController();
-  TextEditingController _emailController = TextEditingController();
-  TextEditingController _bioController = TextEditingController();
+  bool isLoading = true;
+  bool isSaving = false;
+  String? userEmail;
 
   @override
   void initState() {
-    // Initialize controllers with user data (if available)
-    _nameController.text = "John Doe";
-    _emailController.text = "john.doe@example.com";
-    _bioController.text = "I love coding!";
     super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      userEmail = user?.email;
+      if (userEmail != null) {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userEmail)
+            .get();
+        if (doc.exists) {
+          final data = doc.data() as Map<String, dynamic>;
+          nameController.text = data['name'] ?? '';
+          emailController.text = data['email'] ?? userEmail!;
+          passwordController.text = data['password'] ?? '';
+          phoneController.text = data['phone'] ?? '';
+        }
+      }
+    } catch (e) {
+      print("Error loading user data: $e");
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _updateProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => isSaving = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userEmail)
+          .update({
+        'name': nameController.text.trim(),
+        'password': passwordController.text.trim(),
+        'phone': phoneController.text.trim(),
+      });
+
+      // Update password in Firebase Auth if it changed
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && passwordController.text.isNotEmpty) {
+        await user.updatePassword(passwordController.text.trim());
+      }
+
+      Fluttertoast.showToast(
+        msg: "Profile updated successfully!",
+        backgroundColor: Colors.green,
+        textColor: Colors.white,
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      print("Update error: $e");
+      Fluttertoast.showToast(
+        msg: "Failed to update profile: ${e.toString()}",
+        backgroundColor: Colors.red,
+      );
+    } finally {
+      setState(() => isSaving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF8B1A1A);
+    const accentColor = Color(0xFFD4A843);
+    const bgColor = Color(0xFFFFF8F0);
+
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('Edit Profile'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: primaryColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          "EDIT PROFILE",
+          style: TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+            fontSize: 18,
+          ),
+        ),
+        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(labelText: 'Name'),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryColor))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              physics: const BouncingScrollPhysics(),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    // Avatar Header
+                    Center(
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [primaryColor, accentColor],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryColor.withOpacity(0.2),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                nameController.text.isNotEmpty
+                                    ? nameController.text[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                    fontSize: 48,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.camera_alt_rounded,
+                                  color: primaryColor, size: 20),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    // Form Fields
+                    _buildFieldSection(
+                      label: "PERSONAL INFORMATION",
+                      children: [
+                        _buildTextField(
+                          controller: nameController,
+                          label: "Full Name",
+                          icon: Icons.person_outline_rounded,
+                          validator: (v) =>
+                              v!.isEmpty ? "Enter your name" : null,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildTextField(
+                          controller: emailController,
+                          label: "Email Address",
+                          icon: Icons.email_outlined,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildTextField(
+                          controller: phoneController,
+                          label: "Phone Number",
+                          icon: Icons.phone_android_rounded,
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    _buildFieldSection(
+                      label: "SECURITY",
+                      children: [
+                        _buildTextField(
+                          controller: passwordController,
+                          label: "New Password",
+                          icon: Icons.lock_outline_rounded,
+                          isPassword: true,
+                          hint: "Min. 6 characters",
+                          validator: (v) {
+                            if (v!.isNotEmpty && v.length < 6)
+                              return "Too short";
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 48),
+
+                    // Save Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 60,
+                      child: ElevatedButton(
+                        onPressed: isSaving ? null : _updateProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          elevation: 4,
+                          shadowColor: primaryColor.withOpacity(0.4),
+                        ),
+                        child: isSaving
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
+                            : const Text(
+                                "SAVE CHANGES",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.5),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-              SizedBox(height: 16.0),
-              TextFormField(
-                controller: _emailController,
-                decoration: InputDecoration(labelText: 'Email'),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              SizedBox(height: 16.0),
-              TextFormField(
-                controller: _bioController,
-                decoration: InputDecoration(labelText: 'Bio'),
-                maxLines: 3,
-              ),
-              SizedBox(height: 32.0),
-              ElevatedButton(
-                onPressed: () {
-                  // Handle the save button press, update user profile data
-                  _saveProfile();
-                },
-                child: Text('Save'),
+            ),
+    );
+  }
+
+  Widget _buildFieldSection(
+      {required String label, required List<Widget> children}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            label,
+            style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                color: Colors.grey,
+                letterSpacing: 1.5),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
+          child: Column(children: children),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          // Handle bottom navigation item taps
-          _onTabTapped(index);
-        },
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.edit),
-            label: 'Edit Profile',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          // Add more items as needed
-        ],
-      ),
+      ],
     );
   }
 
-  void _saveProfile() {
-    // Implement logic to save/update the user's profile
-    String name = _nameController.text;
-    String email = _emailController.text;
-    String bio = _bioController.text;
-
-    // Perform the necessary operations to save the data (e.g., API call, database update)
-    // You can replace this with your own logic based on your application's needs
-
-    // For demonstration purposes, print the updated data
-    print('Updated Profile:');
-    print('Name: $name');
-    print('Email: $email');
-    print('Bio: $bio');
-
-    // Optionally, show a snackbar or navigate to another screen after saving
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Profile saved successfully!'),
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool enabled = true,
+    bool isPassword = false,
+    String? hint,
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      enabled: enabled,
+      obscureText: isPassword,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: enabled ? const Color(0xFF333333) : Colors.grey),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle:
+            const TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
+        hintText: hint,
+        prefixIcon: Icon(icon, color: const Color(0xFFD4A843), size: 22),
+        filled: true,
+        fillColor: enabled ? Colors.white : Colors.grey.shade50,
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        border: UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.grey.shade200)),
+        enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.grey.shade100)),
+        focusedBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Color(0xFFD4A843), width: 2)),
       ),
     );
-  }
-
-  void _onTabTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-      // Handle navigation to different screens based on the selected index
-      // You can use Navigator or any other navigation method here
-    });
   }
 }

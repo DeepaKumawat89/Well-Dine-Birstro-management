@@ -25,14 +25,17 @@ class UserRequest {
 }
 
 class AdminApprovalScreen extends StatefulWidget {
+  const AdminApprovalScreen({super.key});
+
   @override
   _AdminApprovalScreenState createState() => _AdminApprovalScreenState();
 }
 
 class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
   late List<UserRequest> userRequests = [];
-  late int approve;
-  late String? ownerEmail;
+  String? ownerEmail;
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -41,122 +44,232 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
 
   void fetchUserRequests() async {
     var firestore = FirebaseFirestore.instance;
-    FirebaseAuth _auth=FirebaseAuth.instance;
-    User? user=_auth.currentUser;
-    ownerEmail=user?.email;
+    FirebaseAuth _auth = FirebaseAuth.instance;
+    User? user = _auth.currentUser;
+    ownerEmail = user?.email;
 
-    var querySnapshot = await firestore.collection('mess').doc(user!.email).collection('requests').get();
-    setState(() {
-      userRequests = querySnapshot.docs.map((doc) {
-        return UserRequest(
-          userId: doc.id,
-          userName: doc['name'],
-          contactNumber: doc['contactNumber'],
-          requestTime: doc['date'],
-          time: doc['time'],
-          email: doc['email'],
-          approved: doc['approved'],
-        );
-      }).toList();
-    });
+    if (user != null) {
+      try {
+        var querySnapshot = await firestore
+            .collection('mess')
+            .doc(user.email)
+            .collection('requests')
+            .get();
+        setState(() {
+          userRequests = querySnapshot.docs.map((doc) {
+            return UserRequest(
+              userId: doc.id,
+              userName: doc['name'] ?? 'Unknown',
+              contactNumber: doc['contactNumber'] ?? 'No contact',
+              requestTime: doc['date'] ?? 'No date',
+              time: doc['time'] ?? 'No time',
+              email: doc['email'] ?? 'No email',
+              approved: doc['approved'] ?? 0,
+            );
+          }).toList();
+          _isLoading = false;
+        });
+      } catch (e) {
+        print("Error fetching requests: $e");
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF8B1A1A);
+    const accentColor = Color(0xFFD4A843);
+    const bgColor = Color(0xFFFFF8F0);
+
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('User Requests'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4.0),
-          child: Container(
-            color: Colors.grey.shade300,
-            height: 1.0,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: primaryColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'JOIN REQUESTS',
+          style: TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+            fontSize: 18,
           ),
         ),
+        centerTitle: true,
       ),
-      body: userRequests.isNotEmpty
-          ? ListView.builder(
-        itemCount: userRequests.length,
-        itemBuilder: (context, index) {
-          return InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FullDescriptionOfRequest(
-                    name: userRequests[index].userName,
-                    phoneNumber: userRequests[index].contactNumber,
-                    email: userRequests[index].email,
-                    date: userRequests[index].requestTime,
-                    time: userRequests[index].time,
-                    ownerEmail: ownerEmail,
-                  ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryColor))
+          : userRequests.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: userRequests.length,
+                  itemBuilder: (context, index) {
+                    final request = userRequests[index];
+                    return _buildRequestCard(
+                        request, context, primaryColor, accentColor);
+                  },
                 ),
-              );
-            },
-            child: Card(
-              margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              child: ListTile(
-                title:
-                // Row(
-                //   mainAxisAlignment: MainAxisAlignment.start,
-                //   children: [
-                //     Text(userRequests[index].userName),
-                //     // SizedBox(width: 100,),
-                //     Container(
-                //         alignment: Alignment.bottomRight,
-                //         child: Icon(Icons.access_time))
-                //   ],
-                // ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      userRequests[index].userName,
-                      style: TextStyle(fontFamily: "MainFont"),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right:5,top: 5),
-                      child: Icon(
-                        userRequests[index].approved==1
-                            ? Icons.check_circle
-                            : Icons.timer,
-                        color: userRequests[index].approved==1
-                            ? Colors.green
-                            : Colors.red,
-                      ),
-                    ),
-                  ],
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Contact Number: ${userRequests[index].contactNumber}',
-                    ),
-                    Text(
-                      'Requested at: ${userRequests[index].requestTime}',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      )
-          : Center(child: CircularProgressIndicator()),
     );
   }
 
-  void approveUserRequest(UserRequest request) {
-    setState(() {
-      userRequests.remove(request);
-    });
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.mark_email_read_outlined,
+              size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          const Text(
+            "No pending requests",
+            style: TextStyle(
+                color: Colors.grey, fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
   }
 
-  void rejectUserRequest(UserRequest request) {
-    setState(() {
-      userRequests.remove(request);
-    });
+  Widget _buildRequestCard(UserRequest request, BuildContext context,
+      Color primaryColor, Color accentColor) {
+    bool isApproved = request.approved == 1;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FullDescriptionOfRequest(
+                  name: request.userName,
+                  phoneNumber: request.contactNumber,
+                  email: request.email,
+                  date: request.requestTime,
+                  time: request.time,
+                  ownerEmail: ownerEmail,
+                ),
+              ),
+            ).then((_) => fetchUserRequests());
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // 1. Initial Circle
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: (isApproved ? Colors.green : accentColor)
+                      .withOpacity(0.1),
+                  child: Text(
+                    request.userName[0].toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isApproved ? Colors.green : accentColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // 2. Info Detail
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        request.userName,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF333333),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        request.email,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today_rounded,
+                              size: 12, color: primaryColor.withOpacity(0.5)),
+                          const SizedBox(width: 4),
+                          Text(
+                            request.requestTime,
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. Status Badge
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isApproved
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isApproved
+                            ? Icons.verified_rounded
+                            : Icons.pending_rounded,
+                        size: 14,
+                        color: isApproved ? Colors.green : Colors.orange,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isApproved ? "Approved" : "Pending",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: isApproved ? Colors.green : Colors.orange,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

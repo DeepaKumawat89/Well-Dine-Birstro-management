@@ -15,65 +15,74 @@ class ChangeMenuScreen extends StatefulWidget {
 
 class _ChangeMenuScreenState extends State<ChangeMenuScreen> {
   late String? ownerEmail;
-  void initState(){
+
+  @override
+  void initState() {
     super.initState();
-    FirebaseAuth _auth=FirebaseAuth.instance;
-    User? user=_auth.currentUser;
-    ownerEmail=user?.email;
+    FirebaseAuth _auth = FirebaseAuth.instance;
+    User? user = _auth.currentUser;
+    ownerEmail = user?.email;
   }
 
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF8B1A1A);
+    const accentColor = Color(0xFFD4A843);
+    const bgColor = Color(0xFFFFF8F0);
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        backgroundColor: bgColor,
         appBar: AppBar(
-          title: Text("Menu"),
-          titleTextStyle: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-            fontSize: 20,
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: primaryColor),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            "MANAGEMENT MENU",
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: primaryColor,
+              fontSize: 18,
+              letterSpacing: 1.2,
+            ),
           ),
           bottom: TabBar(
-            tabs: [
-              Tab(
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Text(
-                    "Veg",
-                    style: TextStyle(
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-              Tab(
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Text(
-                    "Non-Veg",
-                    style: TextStyle(
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
+            indicatorColor: accentColor,
+            indicatorWeight: 3,
+            labelColor: primaryColor,
+            unselectedLabelColor: Colors.grey,
+            labelStyle: const TextStyle(
+                fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1),
+            tabs: const [
+              Tab(text: "VEGETARIAN"),
+              Tab(text: "NON-VEG"),
             ],
           ),
         ),
         body: TabBarView(
+          physics: const BouncingScrollPhysics(),
           children: [
-            // Content of the first tab ("Veg")
             _buildMenuList('Veg'),
-            // Content of the second tab ("Non-Veg")
             _buildMenuList('Non-veg'),
           ],
         ),
         floatingActionButton: FloatingActionButton.extended(
-          label: Text("Add Item", style: TextStyle(color: Colors.white),),
-          backgroundColor: Colors.black,
+          label: const Text(
+            "ADD NEW ITEM",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+          backgroundColor: primaryColor,
+          elevation: 4,
           onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => AdminChangeMenuScreen()));
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminChangeMenuScreen()));
           },
         ),
       ),
@@ -89,36 +98,83 @@ class _ChangeMenuScreenState extends State<ChangeMenuScreen> {
           .doc(itemType)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return Center(child: CircularProgressIndicator());
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF8B1A1A)));
         }
 
-        var items = snapshot.data!.get('items') as List<dynamic>;
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.restaurant_outlined,
+                    size: 64, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                const Text("No items found in this category",
+                    style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+
+        var items = (snapshot.data!.get('items') as List<dynamic>?) ?? [];
+
+        if (items.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.restaurant_outlined,
+                    size: 64, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                const Text("Menu is empty",
+                    style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          );
+        }
 
         return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+          physics: const BouncingScrollPhysics(),
           itemCount: items.length,
           itemBuilder: (context, index) {
-            return Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                height: 70,
-                child: Card(
-                  color: Colors.white,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8.0,top: 18),
-                        child: Text('${index+1}) ${items[index]}',style: TextStyle(fontSize: 18)),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          _deleteItem(itemType, index);
-                        },
-                        icon: Icon(Icons.restore_from_trash),
-                      )
-                    ],
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
+                ],
+              ),
+              child: ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFF8B1A1A).withOpacity(0.1),
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                        color: Color(0xFF8B1A1A), fontWeight: FontWeight.bold),
+                  ),
+                ),
+                title: Text(
+                  items[index].toString(),
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF333333)),
+                ),
+                trailing: IconButton(
+                  onPressed: () => _showDeleteConfirm(itemType, index),
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      color: Colors.redAccent),
                 ),
               ),
             );
@@ -128,144 +184,254 @@ class _ChangeMenuScreenState extends State<ChangeMenuScreen> {
     );
   }
 
-  Future<void> _deleteItem(String itemType, int index) async {
-    try {
-      // Get a reference to the menu document
-      DocumentReference menuRef = FirebaseFirestore.instance
-          .collection('messOwner')
-          .doc(ownerEmail)
-          .collection('menu')
-          .doc(itemType);
-
-      // Fetch the current items array
-      DocumentSnapshot snapshot = await menuRef.get();
-      List<dynamic> items = snapshot.get('items');
-
-      // Remove the item at the specified index
-      items.removeAt(index);
-
-      // Update the items array in Firestore
-      await menuRef.update({'items': items});
-    } catch (error) {
-      print("Failed to delete item: $error");
-    }
-  }
-}
-
-
-
-
-
-class AdminChangeMenuScreen extends StatefulWidget {
-  @override
-  _AdminChangeMenuScreenState createState() => _AdminChangeMenuScreenState();
-}
-
-class _AdminChangeMenuScreenState extends State<AdminChangeMenuScreen> {
-  TextEditingController newItemController = TextEditingController();
-  int? _selectedValue = 0; // Initialize _selectedValue
-  late String? ownerEmail;
-  void initState(){
-    super.initState();
-    FirebaseAuth _auth=FirebaseAuth.instance;
-    User? user=_auth.currentUser;
-    ownerEmail=user?.email;
-  }
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Change Menu'),
-      ),
-      body: Column(
-        children: [
-          Container(
-            margin: EdgeInsets.only(left: 20),
-            child: Row(
-              children: [
-                Row(
-                  children: [
-                    Radio<int>(
-                      activeColor: Colors.black,
-                      value: 0,
-                      groupValue: _selectedValue,
-                      onChanged: (int? value) {
-                        setState(() {
-                          _selectedValue = value;
-                        });
-                      },
-                    ),
-                    Text('Veg', style: TextStyle(fontFamily: "MainFont")),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Radio<int>(
-                      activeColor: Colors.black,
-                      value: 1,
-                      groupValue: _selectedValue,
-                      onChanged: (int? value) {
-                        setState(() {
-                          _selectedValue = value;
-                        });
-                      },
-                    ),
-                    Text('Non-Veg',
-                        style: TextStyle(fontFamily: "MainFont")),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: newItemController,
-              decoration: InputDecoration(
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Colors.black, width: 1)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Colors.black, width: 2)),
-              ),
-            ),
+  void _showDeleteConfirm(String itemType, int index) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete Item',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to remove this item?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () {
-              // Call function to save menu changes
-              saveMenuChanges();
+              Navigator.pop(ctx);
+              _deleteItem(itemType, index);
             },
-            child: Text("Submit"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  void saveMenuChanges() {
-    // Extract selected radio button value
-    String itemType = _selectedValue == 0 ? 'Veg' : 'Non-veg';
+  Future<void> _deleteItem(String itemType, int index) async {
+    try {
+      DocumentReference menuRef = FirebaseFirestore.instance
+          .collection('messOwner')
+          .doc(ownerEmail)
+          .collection('menu')
+          .doc(itemType);
 
-    // Get text field value
+      DocumentSnapshot snapshot = await menuRef.get();
+      List<dynamic> items = List.from(snapshot.get('items'));
+
+      items.removeAt(index);
+
+      await menuRef.update({'items': items});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("Item deleted successfully"),
+            backgroundColor: Colors.black87),
+      );
+    } catch (error) {
+      print("Failed to delete item: $error");
+    }
+  }
+}
+
+class AdminChangeMenuScreen extends StatefulWidget {
+  const AdminChangeMenuScreen({super.key});
+
+  @override
+  _AdminChangeMenuScreenState createState() => _AdminChangeMenuScreenState();
+}
+
+class _AdminChangeMenuScreenState extends State<AdminChangeMenuScreen> {
+  TextEditingController newItemController = TextEditingController();
+  int? _selectedValue = 0;
+  late String? ownerEmail;
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    FirebaseAuth _auth = FirebaseAuth.instance;
+    User? user = _auth.currentUser;
+    ownerEmail = user?.email;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF8B1A1A);
+    const accentColor = Color(0xFFD4A843);
+    const bgColor = Color(0xFFFFF8F0);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: primaryColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'ADD MENU ITEM',
+          style: TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+            letterSpacing: 1.2,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                "Category Selection",
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF555555)),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildCategoryOption(0, "Vegetarian",
+                        Icons.fiber_manual_record, Colors.green),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildCategoryOption(
+                        1, "Non-Veg", Icons.fiber_manual_record, Colors.red),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                "Dish Name",
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF555555)),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: newItemController,
+                validator: (value) =>
+                    value == null || value.isEmpty ? "Enter dish name" : null,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  hintText: "e.g. Special Paneer Masala",
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon:
+                      const Icon(Icons.restaurant_rounded, color: accentColor),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: accentColor, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 48),
+              ElevatedButton(
+                onPressed: saveMenuChanges,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 4,
+                  shadowColor: primaryColor.withOpacity(0.4),
+                ),
+                child: const Text(
+                  "SAVE TO MENU",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryOption(
+      int value, String label, IconData icon, Color color) {
+    bool isSelected = _selectedValue == value;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedValue = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade200,
+            width: 2,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isSelected ? color : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void saveMenuChanges() {
+    if (!_formKey.currentState!.validate()) return;
+
+    String itemType = _selectedValue == 0 ? 'Veg' : 'Non-veg';
     String newItem = newItemController.text;
 
-    // Store data into Firebase
     FirebaseFirestore.instance
         .collection('messOwner')
         .doc(ownerEmail)
         .collection('menu')
-        .doc(itemType) // Use itemType as document ID
+        .doc(itemType)
         .update({
       'items': FieldValue.arrayUnion([newItem]),
     }).then((value) {
-      // On success, navigate back to previous screen
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("Menu updated!"), backgroundColor: Color(0xFF2E7D5B)),
+      );
       Navigator.pop(context);
     }).catchError((error) {
-      // Handle error
       print("Failed to add item: $error");
     });
   }
 }
-
-
